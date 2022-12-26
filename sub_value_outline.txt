@@ -1,0 +1,19 @@
+Thinking about SUB with immvalue:
+
+R1 = 5
+R2 = 2
+-----------------------------------------
+
+SUB R1, R2, #3
+
+    R1 = not R2 
+    + 1
+    R1 = add R1, 3
+
+
+SUB R1, R1, #3
+    R1 = not R1 
+    R1 = R1 + 1
+
+    R1 = add R1 + 3
+

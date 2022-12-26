@@ -1,0 +1,38 @@
+
+
+
+MLT R1, R3, #9 --- " case 1 "
+
+MLT R1, R1, #9:
+
+
+    0x1 is R1
+    0x2 is R1
+
+loop:
+    LD r1 from 0x1. 
+    r1 = r1 + value. 
+    ST in memory
+    LD 0x2 (counter) in r1
+    r1 = r1 - 1
+    brp
+
+
+
+MLT R1, R3, #-9 --- " case 1 "
+
+MLT R1, R1, #-9
+-------------------------------------------------------------
+
+if (r1 != r2)
+    if r2 is negative. 
+        add #0 to r2
+        br P to line ... 
+        negative:
+
+
+        pos:
+            load r2 into memory to be counter. 
+
+
+
