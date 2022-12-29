@@ -1,9 +1,9 @@
 	.ORIG x3000
+    RST R0
     RST R1
-    RST R2
 
-	ADD R2, R2, #2
+	ADD R1, R1, #4
 
-    MLT R2, R2, #3
+    MLT R0, R1, #-5
 
 	.END

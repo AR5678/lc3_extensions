@@ -48,8 +48,10 @@ part of the label?  Currently I allow only alpha followed by alphanum and _.
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "symbol.h"
+int rand(void);
 
 typedef enum opcode_t opcode_t;
 enum opcode_t {
@@ -57,7 +59,7 @@ enum opcode_t {
     OP_NONE,
 
     /* real instruction opcodes */
-    OP_MLT, OP_SUB, OP_RST, OP_ADD, OP_AND, OP_BR, OP_JMP, OP_JSR, OP_JSRR, OP_LD, OP_LDI, OP_LDR,
+    OP_TIM, OP_RND, OP_SPR, OP_MLT, OP_SUB, OP_RST, OP_ADD, OP_AND, OP_BR, OP_JMP, OP_JSR, OP_JSRR, OP_LD, OP_LDI, OP_LDR,
     OP_LEA, OP_NOT,  OP_RTI, OP_ST, OP_STI, OP_STR, OP_TRAP,
     
     /* trap pseudo-ops */
@@ -77,7 +79,7 @@ static const char* const opnames[NUM_OPS] = {
     "missing opcode",
 
     /* real instruction opcodes */
-    "MLT", "SUB", "RST", "ADD", "AND", "BR", "JMP", "JSR", "JSRR", "LD", "LDI", "LDR", "LEA",
+    "TIM", "RND", "SPR", "MLT", "SUB", "RST", "ADD", "AND", "BR", "JMP", "JSR", "JSRR", "LD", "LDI", "LDR", "LEA",
     "NOT",  "RTI", "ST", "STI", "STR", "TRAP",
 
     /* trap pseudo-ops */
@@ -112,6 +114,9 @@ static const int op_format_ok[NUM_OPS] = {
     0x200, /* no opcode, no operands       */
 
     /* real instruction formats */
+    0x020, /* TIM - put the time in a register */
+    0x020, /* RND - take in 1 register and load a random value in it*/
+    0x200, /* SPR - for surprise */
     0x003, /* MLT */
     0x003, /* SUB */
     0x020, /* RST: */
@@ -251,6 +256,9 @@ LD        {inst.op = OP_LD;    BEGIN (ls_operands);}
 LEA       {inst.op = OP_LEA;   BEGIN (ls_operands);}
 NOT       {inst.op = OP_NOT;   BEGIN (ls_operands);}
 
+TIM        {inst.op = OP_TIM;   BEGIN (ls_operands);}
+RND        {inst.op = OP_RND;   BEGIN (ls_operands);}
+SPR        {inst.op = OP_SPR;   BEGIN (ls_operands);}
 MLT        {inst.op = OP_MLT;   BEGIN (ls_operands);}
 RST        {inst.op = OP_RST;   BEGIN (ls_operands);}
 SUB        {inst.op = OP_SUB;   BEGIN (ls_operands);}
@@ -626,153 +634,431 @@ generate_instruction (operands_t operands, const char* opstr)
         if (operands == O_RRI) {
             // MLT R1, R3, #9 OR MLT R1, R3, #-9 
             if (r1 != r2) {
-                printf("case 1 HYPE!\n");
                 (void)read_val (o3, &val, 5);
-
-                // reset r1
-                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0 & 0x1F));
-
-                // store R2 in PC + 2
-                write_value (0x3000 | (r2 << 9) | (0x1));
-
-                // branch in all case two spots! 
-                write_value(0xE01);
-
-                //  garbage line because overridden
-                write_value(0xE02);
-
-                // dr = dr + r1
+                // reset r1 and add val to it. Rest of the code is from R1, R1, R2 case
+                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));
                 write_value (0x1020 | (r1 << 9) | (r1 << 6) | (val & 0x1F));
 
-                // r3 - 1
-                write_value (0x1020 | (r2 << 9) | (r2 << 6) | (0x1F));
-                // br
-                write_value(0x3FD);
-
-                // load
-                write_value (0x2000 | (r2 << 9) | (0x1FB));
-
-                break;
-            }
-            else{
-                printf("case 2 not hype");
-                (void)read_val (o3, &val, 5);
-
-                // store r2, r3, r3 in memory PC + 3
-                write_value (0x3000 | (r1 << 9) | (0x2)); // sum total
-                write_value (0x3000 | (r1 << 9) | (0x2)); // counter
-
-                // branch in all case two spots! 
+                // store r1, r3, r3 in memory PC + 3
+                write_value (0x3000 | (r1 << 9) | (0x3)); //  
+                write_value (0x3000 | (r2 << 9) | (0x3)); // 
+                write_value (0x3000 | (r2 << 9) | (0x3)); // 
+                // branch in all case two spots!  and garbage. 
+                write_value(0xE03);
                 write_value(0xE02);
-
-                // two garbage lines because they are overridden
                 write_value(0xE02);
                 write_value(0xE02); 
 
-                // reset r1. 
-                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0 & 0x1F));
-
                 // loop 
-                // load the sum total 
-                write_value (0x2000 | (r1 << 9) | (0x1FC));
+                // check if r2 is negative- add 0
+                // add 0 to r2, br neg
+                write_value (0x1020 | (r2 << 9) | (r2 << 6) | (0x0));
+                write_value(0x807);
 
-                // dr1 = dr1 + val                              
-                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (val & 0x1F));
+                // reset r1. 
+                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0 & 0x1F));   
 
-                // store 
-                write_value (0x3000 | (r1 << 9) | (0x1FA));
+                // LD r2 = mem[0x1] --> r2 = 3.    
+                // pos_mult:    
+                // r1 = r1 + r2
+                write_value (0x2000 | (r2 << 9) | (0x1F9));
+                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (r2));
+                // LD mem[0x2]: r2 = r2 - 1 
+                write_value (0x2000 | (r2 << 9) | (0x1F9));                
+                write_value (0x1020 | (r2 << 9) | (r2 << 6) | (0x1F));
+                // ST r2 in mem[0x2]
+                write_value (0x3000 | (r2 << 9) | (0x1F7));
 
-                // LD 
-                write_value (0x2000 | (r1 << 9) | (0x1FA));
-                // r1 = r1 - 1 
-                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1F));
+                // br nzp to Here!
+                write_value(0xE0E);
 
-                // ST r2 
-                write_value (0x3000 | (r1 << 9) | (0x1F8));
+                // if r2 negtive:
+                // add 0 to r1, br neg_step
+                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x0));
+                write_value(0x807);
 
-                // brp
-                write_value(0x3FA);
+                // case r2 is neg, r2 is pos:
+                // reset r0. 
+                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));   
 
-                // end of loop, restore r3
-                write_value (0x2000 | (r1 << 9) | (0x1F6)); 
+                // r2 be the counter and r1 the adder. 
+                write_value (0x2000 | (r2 << 9) | (0x1F2));
+                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (r2));
+                // LD mem[0x2]: r2 = r2 - 1 
+                write_value (0x2000 | (r2 << 9) | (0x1EE)); // F0                
+                write_value (0x1020 | (r2 << 9) | (r2 << 6) | (0x1F));
+                // ST r1 in mem[0x2]
+                write_value (0x3000 | (r2 << 9) | (0x1EC));
+
+                // br nzp to Here!
+                write_value(0xE05);
+
+                // neg_step
+                // both are negative: not and add 1 to r2 and r2.
+                write_value (0x903F | (r2 << 9) | (r2 << 6));
+                write_value (0x1020 | (r2 << 9) | (r2 << 6) | (0x1));
+                write_value (0x903F | (r1 << 9) | (r1 << 6));
+                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1));
+                // br nzp to pos_mult
+                write_value(0xFF4);
+
+                // Here!
+                // br np to pos_mult
+                write_value(0xBEB);
+
+                // end of loop, restore r2 at mem[0x3]
+                write_value (0x2000 | (r2 << 9) | (0x1E5)); 
+
                 break;
 
-
             }
-        }
-        else{
-            // This works when sr1 and sr2 are positive. This works when sr1 is negative.
-            // r2 can be negative.  
-            // printf("reg %d %d %d\n", r1, r2, r3);
-            if (r1 != r2 && r2 != r3) {
-                // reset r1
-                printf("mult");
-                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0 & 0x1F));
+            else if (r1 == r2) {
+                // MLT R1, R1, #9
+                (void)read_val (o3, &val, 5);
+                // temp register will be R0 or R1. 
+                
+                int tempR = 0b0;
+                if (r1 == 0){
+                    tempR = 0b001;
+                }
+                // store
+                write_value (0x3000 | (tempR << 9) | (0x1)); //  
+                write_value(0xE01);
+                write_value(0xE02);  // This location is tempR
 
-                // store R2 in PC + 2
-                write_value (0x3000 | (r2 << 9) | (0x2));
-                // store r3 in PC + 2
-                write_value (0x3000 | (r3 << 9) | (0x2));
+                // reset tempR and add r1 to it
+                write_value (0x5020 | (tempR << 9) | (tempR << 6)| (0x0));
+                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (val & 0x1F));
 
-
-                // branch in all case two spots! 
+                // store r1, r3, r3 in memory PC + 3
+                write_value (0x3000 | (r1 << 9) | (0x3)); //  
+                write_value (0x3000 | (tempR << 9) | (0x3)); // 
+                write_value (0x3000 | (tempR << 9) | (0x3)); // 
+                // branch in all case two spots!  and garbage. 
+                write_value(0xE03);
                 write_value(0xE02);
-
-                // two garbage lines because they are overridden
                 write_value(0xE02);
-                write_value(0xE02);
+                write_value(0xE02); 
 
-                // dr = dr + r1
-                write_value (0x1000 | (r1 << 9) | (r1 << 6) | r2);
-                // r3 - 1
-                write_value (0x1020 | (r3 << 9) | (r3 << 6) | (0x1F));
-                // br
-                write_value(0x3FD);
+                // loop 
+                // check if tempR is negative- add 0
+                // add 0 to tempR, br neg
+                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x0));
+                write_value(0x807);
 
-                // load
-                write_value (0x2000 | (r3 << 9) | (0x1FB));
+                // reset r1. 
+                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0 & 0x1F));   
+
+                // LD tempR = mem[0x1] --> tempR = 3.    
+                // pos_mult:    
+                // r1 = r1 + tempR
+                write_value (0x2000 | (tempR << 9) | (0x1F9));
+                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (tempR));
+                // LD mem[0x2]: tempR = tempR - 1 
+                write_value (0x2000 | (tempR << 9) | (0x1F9));                
+                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1F));
+                // ST tempR in mem[0x2]
+                write_value (0x3000 | (tempR << 9) | (0x1F7));
+
+                // br nzp to Here!
+                write_value(0xE0E);
+
+                // if tempR negtive:
+                // add 0 to r1, br neg_step
+                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x0));
+                write_value(0x807);
+
+                // case tempR is neg, tempR is pos:
+                // reset r0. 
+                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));   
+
+                // tempR be the counter and r1 the adder. 
+                write_value (0x2000 | (tempR << 9) | (0x1F2));
+                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (tempR));
+                // LD mem[0x2]: tempR = tempR - 1 
+                write_value (0x2000 | (tempR << 9) | (0x1EE)); // F0                
+                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1F));
+                // ST r1 in mem[0x2]
+                write_value (0x3000 | (tempR << 9) | (0x1EC));
+
+                // br nzp to Here!
+                write_value(0xE05);
+
+                // neg_step
+                // both are negative: not and add 1 to tempR and tempR.
+                write_value (0x903F | (tempR << 9) | (tempR << 6));
+                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1));
+                write_value (0x903F | (r1 << 9) | (r1 << 6));
+                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1));
+                // br nzp to pos_mult
+                write_value(0xFF4);
+
+                // Here!
+                // br np to pos_mult
+                write_value(0xBEB);
+
+                // end of loop, restore tempR
+                write_value (0x2000 | (tempR << 9) | (0x1DD)); 
 
 	            break;
             }
             else if (r1 == r2 && r1 != r3) {
                 // MLT R1, R1, R2: R1 = 3 R2 = 2.
 
-                // store r2, r3, r3 in memory PC + 3
-                write_value (0x3000 | (r2 << 9) | (0x3)); // incrementing value
-                write_value (0x3000 | (r3 << 9) | (0x3)); // original R2 to restore
-                write_value (0x3000 | (r3 << 9) | (0x3)); // counter
-
-                // branch in all case two spots! 
+                // store r1, r3, r3 in memory PC + 3
+                write_value (0x3000 | (r2 << 9) | (0x3)); //  
+                write_value (0x3000 | (r3 << 9) | (0x3)); // 
+                write_value (0x3000 | (r3 << 9) | (0x3)); // 
+                // branch in all case two spots!  and garbage. 
                 write_value(0xE03);
-
-                // two garbage lines because they are overridden
                 write_value(0xE02);
                 write_value(0xE02);
                 write_value(0xE02); 
 
+                // loop 
+                // check if r3 is negative- add 0
+                // add 0 to r3, br neg
+                write_value (0x1020 | (r3 << 9) | (r3 << 6) | (0x0));
+                write_value(0x807);
+
                 // reset r1. 
-                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0 & 0x1F));
+                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0 & 0x1F));   
+
+                // LD r3 = mem[0x1] --> r3 = 3.    
+                // pos_mult:    
+                // r1 = r1 + r3
+                write_value (0x2000 | (r3 << 9) | (0x1F9));
+                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (r3));
+                // LD mem[0x2]: r2 = r2 - 1 
+                write_value (0x2000 | (r3 << 9) | (0x1F9));                
+                write_value (0x1020 | (r3 << 9) | (r3 << 6) | (0x1F));
+                // ST r2 in mem[0x2]
+                write_value (0x3000 | (r3 << 9) | (0x1F7));
+
+                // br nzp to Here!
+                write_value(0xE0E);
+
+                // if r3 negtive:
+                // add 0 to r1, br neg_step
+                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x0));
+                write_value(0x807);
+
+                // case r3 is neg, r2 is pos:
+                // reset r0. 
+                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));   
+
+                // r3 be the counter and r1 the adder. 
+                write_value (0x2000 | (r3 << 9) | (0x1F2));
+                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (r3));
+                // LD mem[0x2]: r3 = r3 - 1 
+                write_value (0x2000 | (r3 << 9) | (0x1EE)); // F0                
+                write_value (0x1020 | (r3 << 9) | (r3 << 6) | (0x1F));
+                // ST r1 in mem[0x2]
+                write_value (0x3000 | (r3 << 9) | (0x1EC));
+
+                // br nzp to Here!
+                write_value(0xE05);
+
+                // neg_step
+                // both are negative: not and add 1 to r2 and r3.
+                write_value (0x903F | (r3 << 9) | (r3 << 6));
+                write_value (0x1020 | (r3 << 9) | (r3 << 6) | (0x1));
+                write_value (0x903F | (r1 << 9) | (r1 << 6));
+                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1));
+                // br nzp to pos_mult
+                write_value(0xFF4);
+
+                // Here!
+                // br np to pos_mult
+                write_value(0xBEB);
+
+                // end of loop, restore r3 at mem[0x3]
+                write_value (0x2000 | (r3 << 9) | (0x1E5)); 
+
+                break;
+            }
+            else if (r1 == r2 && r2 == r3){
+
+                int tempR = 0b0;
+                if (r1 == 0){
+                    printf("it is 0");
+                    tempR = 0b001;
+                }
+                printf("this is %d", tempR);
+
+                // store
+                write_value (0x3000 | (tempR << 9) | (0x1)); //  
+                write_value(0xE01);
+                write_value(0xE02);  // This location is tempR
+
+                // reset tempR and add r1 to it
+                write_value (0x5020 | (tempR << 9) | (tempR << 6)| (0x0));
+                write_value (0x1000 | (tempR << 9) | (tempR << 6) | r1);
+
+
+                // copy code
+                
+                // store r1, r3, r3 in memory PC + 3
+                write_value (0x3000 | (r2 << 9) | (0x3)); //  
+                write_value (0x3000 | (tempR << 9) | (0x3)); // 
+                write_value (0x3000 | (tempR << 9) | (0x3)); // 
+                // branch in all case two spots!  and garbage. 
+                write_value(0xE03);
+                write_value(0xE02);
+                write_value(0xE02);
+                write_value(0xE02); 
 
                 // loop 
-                // LD R2 = mem[0x1] --> R2 = 3.             ?? OFFSET
-                write_value (0x2000 | (r3 << 9) | (0x1FB));
+                // check if tempR is negative- add 0
+                // add 0 to tempR, br neg
+                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x0));
+                write_value(0x807);
 
-                // r1 = r1 + 0                                 // FIGUREOUT
-                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (r3));
+                // reset r1. 
+                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0 & 0x1F));   
 
-                // LD 
-                write_value (0x2000 | (r3 << 9) | (0x1FB));
-                // r2 = r2 - 1 
-                write_value (0x1020 | (r3 << 9) | (r3 << 6) | (0x1F));
+                // LD tempR = mem[0x1] --> tempR = 3.    
+                // pos_mult:    
+                // r1 = r1 + tempR
+                write_value (0x2000 | (tempR << 9) | (0x1F9));
+                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (tempR));
+                // LD mem[0x2]: r2 = r2 - 1 
+                write_value (0x2000 | (tempR << 9) | (0x1F9));                
+                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1F));
+                // ST r2 in mem[0x2]
+                write_value (0x3000 | (tempR << 9) | (0x1F7));
 
-                // ST r2 in mem[0x3]
-                write_value (0x3000 | (r3 << 9) | (0x1F9));
-                // brp
-                write_value(0x3FA);
+                // br nzp to Here!
+                write_value(0xE0E);
 
-                // end of loop, restore r3
-                write_value (0x2000 | (r3 << 9) | (0x1F6)); 
+                // if tempR negtive:
+                // add 0 to r1, br neg_step
+                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x0));
+                write_value(0x807);
+
+                // case tempR is neg, r2 is pos:
+                // reset r0. 
+                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));   
+
+                // tempR be the counter and r1 the adder. 
+                write_value (0x2000 | (tempR << 9) | (0x1F2));
+                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (tempR));
+                // LD mem[0x2]: tempR = tempR - 1 
+                write_value (0x2000 | (tempR << 9) | (0x1EE)); // F0                
+                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1F));
+                // ST r1 in mem[0x2]
+                write_value (0x3000 | (tempR << 9) | (0x1EC));
+
+                // br nzp to Here!
+                write_value(0xE05);
+
+                // neg_step
+                // both are negative: not and add 1 to r2 and tempR.
+                write_value (0x903F | (tempR << 9) | (tempR << 6));
+                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1));
+                write_value (0x903F | (r1 << 9) | (r1 << 6));
+                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1));
+                // br nzp to pos_mult
+                write_value(0xFF4);
+
+                // Here!
+                // br np to pos_mult
+                write_value(0xBEB);
+
+                // end of loop, restore tempR at mem[0x3]
+                write_value (0x2000 | (tempR << 9) | (0x1DD)); 
+
                 break;
+
+            }
+            else if (r1 != r2 && r2 == r3){
+                int tempR;
+                tempR = r2;
+
+                // store
+                write_value (0x3000 | (tempR << 9) | (0x1)); //  
+                write_value(0xE01);
+                write_value(0xE02);  // This location is tempR
+
+                // reset tempR and add r1 to it
+                write_value (0x5020 | (tempR << 9) | (tempR << 6)| (0x0));
+                write_value (0x1000 | (tempR << 9) | (tempR << 6) | r1);
+
+
+                // copy code
+                
+                // store r1, r3, r3 in memory PC + 3
+                write_value (0x3000 | (r1 << 9) | (0x3)); //  
+                write_value (0x3000 | (tempR << 9) | (0x3)); // 
+                write_value (0x3000 | (tempR << 9) | (0x3)); // 
+                // branch in all case two spots!  and garbage. 
+                write_value(0xE03);
+                write_value(0xE02);
+                write_value(0xE02);
+                write_value(0xE02); 
+
+                // loop 
+                // check if tempR is negative- add 0
+                // add 0 to tempR, br neg
+                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x0));
+                write_value(0x807);
+
+                // reset r1. 
+                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0 & 0x1F));   
+
+                // LD tempR = mem[0x1] --> tempR = 3.    
+                // pos_mult:    
+                // r1 = r1 + tempR
+                write_value (0x2000 | (tempR << 9) | (0x1F9));
+                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (tempR));
+                // LD mem[0x2]: r1 = r1 - 1 
+                write_value (0x2000 | (tempR << 9) | (0x1F9));                
+                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1F));
+                // ST r1 in mem[0x2]
+                write_value (0x3000 | (tempR << 9) | (0x1F7));
+
+                // br nzp to Here!
+                write_value(0xE0E);
+
+                // if tempR negtive:
+                // add 0 to r1, br neg_step
+                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x0));
+                write_value(0x807);
+
+                // case tempR is neg, r1 is pos:
+                // reset r0. 
+                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));   
+
+                // tempR be the counter and r1 the adder. 
+                write_value (0x2000 | (tempR << 9) | (0x1F2));
+                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (tempR));
+                // LD mem[0x2]: tempR = tempR - 1 
+                write_value (0x2000 | (tempR << 9) | (0x1EE)); // F0                
+                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1F));
+                // ST r1 in mem[0x2]
+                write_value (0x3000 | (tempR << 9) | (0x1EC));
+
+                // br nzp to Here!
+                write_value(0xE05);
+
+                // neg_step
+                // both are negative: not and add 1 to r1 and tempR.
+                write_value (0x903F | (tempR << 9) | (tempR << 6));
+                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1));
+                write_value (0x903F | (r1 << 9) | (r1 << 6));
+                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1));
+                // br nzp to pos_mult
+                write_value(0xFF4);
+
+                // Here!
+                // br np to pos_mult
+                write_value(0xBEB);
+
+                // end of loop, restore tempR at mem[0x3]
+                write_value (0x2000 | (tempR << 9) | (0x1DD)); 
+
+                break;
+
             }
 
 
@@ -799,7 +1085,7 @@ generate_instruction (operands_t operands, const char* opstr)
         } else {
             printf("subtract %d %d %d \n", r1, r2, r3);
 
-            if (r1 == r2 && r2 == r3) {
+            if (r1 == r2  && r2 == r3) {
                 // SUB R1, R1, R1
                 // reset R1 = 0. 
                 write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0 & 0x1F));
@@ -831,10 +1117,52 @@ generate_instruction (operands_t operands, const char* opstr)
         }
         break;
 
+    // puts a random value register!
+    // This is really good for testings - registers will be postive, neg, or zero.
+    case OP_RND: ;
+        // generate a random number 
+        int r = rand();
+
+        // br nzp over 1 spot 
+        write_value(0xE01);
+        // get a random line. 
+        write_value(r);
+        // load value of the prior line in a register. 
+        write_value (0x2000 | (r1 << 9) | (0x1FE));
+
+        printf("random number is %x\n", r);
+
+        break;
+
+    case OP_TIM: ;
+        time_t seconds;
+     
+        seconds = time(NULL);
+        seconds = seconds & 0xffff;
+        // reset the register
+        // add seconds to it
+        printf("this is the register %d\n", r1);
+        printf("%x\n", seconds);
+
+        write_value(0xE01);
+        // get a random line. 
+        write_value(seconds);
+        // load value of the prior line in a register. 
+        write_value (0x2000 | (r1 << 9) | (0x1FE));
+
+        break;
+
+
+    // generate a RANDOM OPCODE.
+    case OP_SPR:
+        printf("surprise!\n");
+        int random_line = rand();
+        write_value(random_line);
+        break;
 
     case OP_RST:
         printf("reset ");
-		write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0 & 0x1F));
+		write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));
 	    break;
 
 	case OP_ADD:

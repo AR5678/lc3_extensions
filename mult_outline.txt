@@ -71,14 +71,15 @@ R2 = 2, R3 = -5:
 MLT R1, R1, R2. 
 ----------------------------------
 if r1 == r2:
-    ST r2 in memory. -- second
-    ST r3 in memory. -- third
+    ST r2 in memory. 
+    ST r3 in memory. 
 
     set r1 = 0
 
     Loop:
-        LD into thirdRegister the secondValue
-        r1 = r1 + r2
+        LD r1 = mem[0x1], 
+        r1 = r1 + 0 
+
         LD into thirdRegister the third value
         r3 = r3 - 1
         store r3 in memory 
@@ -86,20 +87,21 @@ if r1 == r2:
 
 
 MLT R1, R1, R2:
+
     R1 = 3
     R2 = 2.
     ------ note: at the beginning, two memory locations for r3. 
 
-    0x1 = 3     ## incrementing value
-    0x2 = 2     ### orignal R2, we will need to restore
+    0x1 = 3             ## incrementing value
+    0x2 = 2             ### orignal R2, we will need to restore
     0x3 = 2 then = 1    ## counter
 
     R1 = 0
     loop:
         LD R2 = mem[0x1] --> R2 = 3
-        r1 = r1 + r2................... R1 = 3, R2 = 3.
+        r1 = r1 + 0 ................... R1 = 3, R2 = 3.
         LD R2 = mem[0x3] = 2
-        r2 = r2 -1 .................... R1 = 3, R2 = 1
+        r2 = r2 - 1 .................... R1 = 3, R2 = 1
         ST r2 in 0x3
         BRp 
     
@@ -116,6 +118,37 @@ MLT R1, R1, R2:
 
 
 MLT R1, R1, R1. 
+
+R1 = 3, R1 = 9
+R1 = 0, R1 = 6, 
+
+    save r1 in two memory locations 0x1, 0x2
+    mem[0x1] = 3 4 5 6 7 8 9      ## solution.               3,6,12,24,. .... 3,6,9,12,15. 
+
+    mem[0x2] = 3 2 1 0 . 3 2 1 0. 3 2 1 0.    ## counter.                 3, 4, 5, 6, 7, 8, 9, 10
+
+    mem[0x3] = 6    ## ???
+
+
+    LD 0x1 in r1
+    add r1 = r1 + 0
+    st in 0x1
+
+    take care of counter --
+    subtract 2. 
+
+    br negative. 
+
+---------------------------------------------------------
+mem[0x4] = 6
+R1 = 3 
+
+R1 = 9 Impossible!
+
+
+
+
+
 
 
 
