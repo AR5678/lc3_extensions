@@ -166,6 +166,7 @@ main (int argc, char** argv)
 	return 2;
     }
 
+
     line_num = 0;
     num_errors = 0;
     new_inst_line ();
@@ -222,12 +223,16 @@ read_val (const char* s, int* vptr, int bits)
 static void
 write_value (int val)
 {
+    printf("hello9Earth");
+    fflush(stdout);
     unsigned char out[2];
 
     /* FIXME: just htons... */
     out[0] = (val >> 8);
     out[1] = (val & 0xFF);
     fwrite (out, 2, 1, objout);
+
+
 }
 
 static void 

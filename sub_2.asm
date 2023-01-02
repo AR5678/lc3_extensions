@@ -1,11 +1,12 @@
 	.ORIG x3000
-    ; somthing2
-    RST R3
-    RST R1
-    
-    ADD R1, R1, #7
-	ADD R3, R3, #10
 
-    SUB R3, R3, R1
+    RST R0
+    RST R1
+    RST R2
+
+    ADD R1, R1, #2
+    ADD R2, R2, #3
+
+    SUB R0, R1, R2
 
 	.END

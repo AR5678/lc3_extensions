@@ -791,6 +791,7 @@ char *yytext;
 
 static int line_num, num_errors, parse_hex, binary_value, bin_count, hex_count;
 static FILE* objout;
+static FILE* avigayil;
 
 static void new_inst_line ();
 static void bad_line ();
@@ -798,7 +799,7 @@ static void generate_bin_instruction (int value);
 static void generate_hex_instruction (const char* val_str);
 static void end_current_bin_line ();
 
-#line 802 "lex.lc3convert.c"
+#line 803 "lex.lc3convert.c"
 /* 
    Operand types--note that hexadecimal does not require the "x" prefix
    for conversion.
@@ -806,7 +807,7 @@ static void end_current_bin_line ();
 /* comment and white space specification */
 /* exclusive lexing states to read binary and hexadecimal files */
 
-#line 810 "lex.lc3convert.c"
+#line 811 "lex.lc3convert.c"
 
 #define INITIAL 0
 #define ls_binary 1
@@ -1025,9 +1026,9 @@ YY_DECL
 		}
 
 	{
-#line 74 "lc3convert.f"
+#line 75 "lc3convert.f"
 
-#line 76 "lc3convert.f"
+#line 77 "lc3convert.f"
     /* Choose appropriate parser. */
     if (parse_hex) {
         BEGIN (ls_hexadecimal);
@@ -1036,7 +1037,7 @@ YY_DECL
     }
 
     /* binary parser */
-#line 1040 "lex.lc3convert.c"
+#line 1041 "lex.lc3convert.c"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -1095,7 +1096,7 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 84 "lc3convert.f"
+#line 85 "lc3convert.f"
 {
     if (++bin_count == 17) {
         fprintf (stderr, "%3d: line contains more than 16 digits\n", line_num);
@@ -1110,68 +1111,68 @@ YY_RULE_SETUP
 case 2:
 /* rule 2 can match eol */
 YY_RULE_SETUP
-#line 94 "lc3convert.f"
+#line 95 "lc3convert.f"
 {end_current_bin_line ();}
 	YY_BREAK
 case YY_STATE_EOF(ls_binary):
-#line 95 "lc3convert.f"
+#line 96 "lc3convert.f"
 {end_current_bin_line (); return 0;}
 	YY_BREAK
 /* hexadecimal parser */
 case 3:
 YY_RULE_SETUP
-#line 98 "lc3convert.f"
+#line 99 "lc3convert.f"
 {generate_hex_instruction (yytext);}
 	YY_BREAK
 case 4:
 /* rule 4 can match eol */
 YY_RULE_SETUP
-#line 99 "lc3convert.f"
+#line 100 "lc3convert.f"
 {new_inst_line (); /* a blank line */ }
 	YY_BREAK
 /* eat excess white space (both parsers) */
 case 5:
 YY_RULE_SETUP
-#line 103 "lc3convert.f"
+#line 104 "lc3convert.f"
 {}  
 	YY_BREAK
 /* error handling (replicated because of substate use) */
 case 6:
 YY_RULE_SETUP
-#line 108 "lc3convert.f"
+#line 109 "lc3convert.f"
 {BEGIN (ls_bin_garbage);}
 	YY_BREAK
 case 7:
 /* rule 7 can match eol */
 YY_RULE_SETUP
-#line 109 "lc3convert.f"
+#line 110 "lc3convert.f"
 {bad_line (); BEGIN (ls_binary);}
 	YY_BREAK
 case YY_STATE_EOF(ls_bin_garbage):
-#line 110 "lc3convert.f"
+#line 111 "lc3convert.f"
 {bad_line (); BEGIN (ls_binary); return 0;}
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 112 "lc3convert.f"
+#line 113 "lc3convert.f"
 {BEGIN (ls_hex_garbage);}
 	YY_BREAK
 case 9:
 /* rule 9 can match eol */
 YY_RULE_SETUP
-#line 113 "lc3convert.f"
+#line 114 "lc3convert.f"
 {bad_line (); BEGIN (ls_hexadecimal);}
 	YY_BREAK
 case YY_STATE_EOF(ls_hex_garbage):
-#line 114 "lc3convert.f"
+#line 115 "lc3convert.f"
 {bad_line (); BEGIN (ls_hexadecimal); return 0;}
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 116 "lc3convert.f"
+#line 117 "lc3convert.f"
 ECHO;
 	YY_BREAK
-#line 1175 "lex.lc3convert.c"
+#line 1176 "lex.lc3convert.c"
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(ls_hexadecimal):
 	yyterminate();
@@ -2140,7 +2141,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 116 "lc3convert.f"
+#line 117 "lc3convert.f"
 
 
 int
@@ -2194,6 +2195,14 @@ main (int argc, char** argv)
         fprintf (stderr, "Could not open %s for writing.\n", fname);
 	return 2;
     }
+    /* Open output files for avigayil. */
+    strcpy (ext, ".obj");   
+    avigayil = fopen ("hereWego.txt", "w");
+    if ((avigayil) == NULL) {
+        fprintf (stderr, "Could not open %s for writing.\n", "hereWego.txt");
+	    return 2;
+    }
+
 
     line_num = 0;
     num_errors = 0;
@@ -2204,6 +2213,7 @@ main (int argc, char** argv)
     	return 1;
 
     fclose (objout);
+    fclose (avigayil);
 
     return 0;
 }
@@ -2251,12 +2261,14 @@ read_val (const char* s, int* vptr, int bits)
 static void
 write_value (int val)
 {
+	
     unsigned char out[2];
 
     /* FIXME: just htons... */
     out[0] = (val >> 8);
     out[1] = (val & 0xFF);
     fwrite (out, 2, 1, objout);
+
 }
 
 static void 

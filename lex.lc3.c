@@ -641,8 +641,8 @@ static const flex_int16_t yy_accept[519] =
         0,    0,   51,    0,    0,    0,    0,    0,   51,    0,
         0,    0,    0,    0,    0,    0,    0,    0,    0,    1,
         2,    3,    3,    3,   47,   47,    4,    6,    7,    8,
-       10,   15,   11,   26,   47,   30,   13,   16,   18,   14,
-       19,   20,   17,   12,   47,   50,    0,    0,    0,    0,
+       10,   12,   11,   26,   47,   30,   13,   14,   18,   16,
+       19,   20,   15,   17,   47,   50,    0,    0,    0,    0,
         0,   49,    0,    0,    0,    0,    0,   41,    0,    0,
         0,   42,    0,    0,    0,    0,    0,    0,   55,   55,
 
@@ -1519,17 +1519,32 @@ part of the label?  Currently I allow only alpha followed by alphanum and _.
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <inttypes.h>
+#include <sys/time.h>
 
 #include "symbol.h"
+/* get a random number */
 int rand(void);
+
+/* return the time in microseconds. */
+long getMicrotime(){
+	struct timeval currentTime;
+	gettimeofday(&currentTime, NULL);
+	return currentTime.tv_sec * (int)1e6 + currentTime.tv_usec;
+}
+
 
 typedef enum opcode_t opcode_t;
 enum opcode_t {
     /* no opcode seen (yet) */
     OP_NONE,
 
-    /* real instruction opcodes */
-    OP_TIM, OP_RND, OP_SPR, OP_MLT, OP_SUB, OP_RST, OP_ADD, OP_AND, OP_BR, OP_JMP, OP_JSR, OP_JSRR, OP_LD, OP_LDI, OP_LDR,
+    /* new instruction opcodes */
+    OP_MLT, OP_RND, OP_RST, OP_SPR, OP_SUB, OP_TIM,
+
+    
+    /* old instruction opcodes*/
+    OP_ADD, OP_AND, OP_BR, OP_JMP, OP_JSR, OP_JSRR, OP_LD, OP_LDI, OP_LDR,
     OP_LEA, OP_NOT,  OP_RTI, OP_ST, OP_STI, OP_STR, OP_TRAP,
     
     /* trap pseudo-ops */
@@ -1548,8 +1563,11 @@ static const char* const opnames[NUM_OPS] = {
     /* no opcode seen (yet) */
     "missing opcode",
 
+    /* new instruction opcodes */
+    "MLT", "RND", "RST", "SPR", "SUB", "TIM",
+    
     /* real instruction opcodes */
-    "TIM", "RND", "SPR", "MLT", "SUB", "RST", "ADD", "AND", "BR", "JMP", "JSR", "JSRR", "LD", "LDI", "LDR", "LEA",
+    "ADD", "AND", "BR", "JMP", "JSR", "JSRR", "LD", "LDI", "LDR", "LEA",
     "NOT",  "RTI", "ST", "STI", "STR", "TRAP",
 
     /* trap pseudo-ops */
@@ -1583,14 +1601,16 @@ static const int op_format_ok[NUM_OPS] = {
     /* no opcode seen (yet) */
     0x200, /* no opcode, no operands       */
 
-    /* real instruction formats */
-    0x020, /* TIM - put the time in a register */
-    0x020, /* RND - take in 1 register and load a random value in it*/
-    0x200, /* SPR - for surprise */
-    0x003, /* MLT */
-    0x003, /* SUB */
-    0x020, /* RST: */
+    /* new instruction formats */
+    0x003, /* MLT: RRR or RRI formats only */
+    0x020, /* RND: R format only    - take in 1 register and load a random value in it*/
+    0x020, /* RST: R format only */
+    0x200, /* SPR: no operands */
+    0x003, /* SUB: RRR or RRI formats only */
+    0x020, /* TIM: R format only    - put the time in a register */
 
+
+    /* real instruction formats */
     0x003, /* ADD: RRR or RRI formats only  0011 */
     0x003, /* AND: RRR or RRI formats only  0011 */
     0x0C0, /* BR: I or L formats only       11000000 */
@@ -1661,6 +1681,8 @@ static int pass, line_num, num_errors, saw_orig, code_loc, saw_end;
 static inst_t inst;
 static FILE* symout;
 static FILE* objout;
+/* make a file to keep track of hex instructions */
+static FILE* out_file;
 
 static void new_inst_line ();
 static void bad_operands ();
@@ -1671,7 +1693,7 @@ static void parse_ccode (const char*);
 static void generate_instruction (operands_t, const char*);
 static void found_label (const char* lname);
 
-#line 1675 "lex.lc3.c"
+#line 1697 "lex.lc3.c"
 /* condition code specification */
 /* operand types */
 /* operand and white space specification */
@@ -1680,7 +1702,7 @@ static void found_label (const char* lname);
 /* exclusive lexing states to read operands, eat garbage lines, and
    check for extra text after .END directive */
 
-#line 1684 "lex.lc3.c"
+#line 1706 "lex.lc3.c"
 
 #define INITIAL 0
 #define ls_operands 1
@@ -1898,12 +1920,12 @@ YY_DECL
 		}
 
 	{
-#line 244 "lc3.f"
+#line 266 "lc3.f"
 
 
-#line 247 "lc3.f"
+#line 269 "lc3.f"
     /* rules for real instruction opcodes */
-#line 1907 "lex.lc3.c"
+#line 1929 "lex.lc3.c"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -1962,248 +1984,248 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 248 "lc3.f"
+#line 270 "lc3.f"
 {inst.op = OP_ADD;   BEGIN (ls_operands);}
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 249 "lc3.f"
+#line 271 "lc3.f"
 {inst.op = OP_AND;   BEGIN (ls_operands);}
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 250 "lc3.f"
+#line 272 "lc3.f"
 {inst.op = OP_BR;    parse_ccode (yytext + 2); BEGIN (ls_operands);}
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 251 "lc3.f"
+#line 273 "lc3.f"
 {inst.op = OP_JMP;   BEGIN (ls_operands);}
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 252 "lc3.f"
+#line 274 "lc3.f"
 {inst.op = OP_JSRR;  BEGIN (ls_operands);}
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 253 "lc3.f"
+#line 275 "lc3.f"
 {inst.op = OP_JSR;   BEGIN (ls_operands);}
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 254 "lc3.f"
+#line 276 "lc3.f"
 {inst.op = OP_LDI;   BEGIN (ls_operands);}
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 255 "lc3.f"
+#line 277 "lc3.f"
 {inst.op = OP_LDR;   BEGIN (ls_operands);}
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 256 "lc3.f"
+#line 278 "lc3.f"
 {inst.op = OP_LD;    BEGIN (ls_operands);}
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 257 "lc3.f"
+#line 279 "lc3.f"
 {inst.op = OP_LEA;   BEGIN (ls_operands);}
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 258 "lc3.f"
+#line 280 "lc3.f"
 {inst.op = OP_NOT;   BEGIN (ls_operands);}
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 260 "lc3.f"
-{inst.op = OP_TIM;   BEGIN (ls_operands);}
+#line 282 "lc3.f"
+{inst.op = OP_MLT;   BEGIN (ls_operands);}
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 261 "lc3.f"
+#line 283 "lc3.f"
 {inst.op = OP_RND;   BEGIN (ls_operands);}
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 262 "lc3.f"
-{inst.op = OP_SPR;   BEGIN (ls_operands);}
+#line 284 "lc3.f"
+{inst.op = OP_RST;   BEGIN (ls_operands);}
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 263 "lc3.f"
-{inst.op = OP_MLT;   BEGIN (ls_operands);}
+#line 285 "lc3.f"
+{inst.op = OP_SUB;   BEGIN (ls_operands);}
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 264 "lc3.f"
-{inst.op = OP_RST;   BEGIN (ls_operands);}
+#line 286 "lc3.f"
+{inst.op = OP_SPR;   BEGIN (ls_operands);}
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 265 "lc3.f"
-{inst.op = OP_SUB;   BEGIN (ls_operands);}
+#line 287 "lc3.f"
+{inst.op = OP_TIM;   BEGIN (ls_operands);}
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 267 "lc3.f"
+#line 289 "lc3.f"
 {inst.op = OP_RTI;   BEGIN (ls_operands);}
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 268 "lc3.f"
+#line 290 "lc3.f"
 {inst.op = OP_STI;   BEGIN (ls_operands);}
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 269 "lc3.f"
+#line 291 "lc3.f"
 {inst.op = OP_STR;   BEGIN (ls_operands);}
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 270 "lc3.f"
+#line 292 "lc3.f"
 {inst.op = OP_ST;    BEGIN (ls_operands);}
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 271 "lc3.f"
+#line 293 "lc3.f"
 {inst.op = OP_TRAP;  BEGIN (ls_operands);}
 	YY_BREAK
 /* rules for trap pseudo-ols */
 case 23:
 YY_RULE_SETUP
-#line 274 "lc3.f"
+#line 296 "lc3.f"
 {inst.op = OP_GETC;  BEGIN (ls_operands);}
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 275 "lc3.f"
+#line 297 "lc3.f"
 {inst.op = OP_HALT;  BEGIN (ls_operands);}
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 276 "lc3.f"
+#line 298 "lc3.f"
 {inst.op = OP_IN;    BEGIN (ls_operands);}
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 277 "lc3.f"
+#line 299 "lc3.f"
 {inst.op = OP_OUT;   BEGIN (ls_operands);}
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 278 "lc3.f"
+#line 300 "lc3.f"
 {inst.op = OP_PUTS;  BEGIN (ls_operands);}
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 279 "lc3.f"
+#line 301 "lc3.f"
 {inst.op = OP_PUTSP; BEGIN (ls_operands);}
 	YY_BREAK
 /* rules for non-trap pseudo-ops */
 case 29:
 YY_RULE_SETUP
-#line 282 "lc3.f"
+#line 304 "lc3.f"
 {inst.op = OP_FILL;  BEGIN (ls_operands);}
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 283 "lc3.f"
+#line 305 "lc3.f"
 {inst.op = OP_RET;   BEGIN (ls_operands);}
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 284 "lc3.f"
+#line 306 "lc3.f"
 {inst.op = OP_STRINGZ; BEGIN (ls_operands);}
 	YY_BREAK
 /* rules for directives */
 case 32:
 YY_RULE_SETUP
-#line 287 "lc3.f"
+#line 309 "lc3.f"
 {inst.op = OP_BLKW; BEGIN (ls_operands);}
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 288 "lc3.f"
+#line 310 "lc3.f"
 {saw_end = 1;       BEGIN (ls_finished);}
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 289 "lc3.f"
+#line 311 "lc3.f"
 {inst.op = OP_ORIG; BEGIN (ls_operands);}
 	YY_BREAK
 /* rules for operand formats */
 case 35:
 /* rule 35 can match eol */
 YY_RULE_SETUP
-#line 292 "lc3.f"
+#line 314 "lc3.f"
 {generate_instruction (O_RRR, yytext); BEGIN (0);}
 	YY_BREAK
 case 36:
 /* rule 36 can match eol */
 YY_RULE_SETUP
-#line 293 "lc3.f"
+#line 315 "lc3.f"
 {generate_instruction (O_RRI, yytext); BEGIN (0);}
 	YY_BREAK
 case 37:
 /* rule 37 can match eol */
 YY_RULE_SETUP
-#line 294 "lc3.f"
+#line 316 "lc3.f"
 {generate_instruction (O_RR, yytext);  BEGIN (0);}
 	YY_BREAK
 case 38:
 /* rule 38 can match eol */
 YY_RULE_SETUP
-#line 295 "lc3.f"
+#line 317 "lc3.f"
 {generate_instruction (O_RI, yytext);  BEGIN (0);}
 	YY_BREAK
 case 39:
 /* rule 39 can match eol */
 YY_RULE_SETUP
-#line 296 "lc3.f"
+#line 318 "lc3.f"
 {generate_instruction (O_RL, yytext);  BEGIN (0);}
 	YY_BREAK
 case 40:
 /* rule 40 can match eol */
 YY_RULE_SETUP
-#line 297 "lc3.f"
+#line 319 "lc3.f"
 {generate_instruction (O_R, yytext);   BEGIN (0);}
 	YY_BREAK
 case 41:
 /* rule 41 can match eol */
 YY_RULE_SETUP
-#line 298 "lc3.f"
+#line 320 "lc3.f"
 {generate_instruction (O_I, yytext);   BEGIN (0);}
 	YY_BREAK
 case 42:
 /* rule 42 can match eol */
 YY_RULE_SETUP
-#line 299 "lc3.f"
+#line 321 "lc3.f"
 {generate_instruction (O_L, yytext);   BEGIN (0);}
 	YY_BREAK
 case 43:
 /* rule 43 can match eol */
 YY_RULE_SETUP
-#line 300 "lc3.f"
+#line 322 "lc3.f"
 {generate_instruction (O_S, yytext);   BEGIN (0);}
 	YY_BREAK
 case 44:
 /* rule 44 can match eol */
 YY_RULE_SETUP
-#line 301 "lc3.f"
+#line 323 "lc3.f"
 {generate_instruction (O_, yytext);    BEGIN (0);}
 	YY_BREAK
 /* eat excess white space */
 case 45:
 YY_RULE_SETUP
-#line 304 "lc3.f"
+#line 326 "lc3.f"
 {}  
 	YY_BREAK
 case 46:
 /* rule 46 can match eol */
 YY_RULE_SETUP
-#line 305 "lc3.f"
+#line 327 "lc3.f"
 {new_inst_line (); /* a blank line */ }
 	YY_BREAK
 /* labels, with or without subsequent colons */\
@@ -2214,65 +2236,65 @@ YY_RULE_SETUP
      */
 case 47:
 YY_RULE_SETUP
-#line 313 "lc3.f"
+#line 335 "lc3.f"
 {found_label (yytext);}
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 314 "lc3.f"
+#line 336 "lc3.f"
 {found_label (yytext);}
 	YY_BREAK
 /* error handling??? */
 case 49:
 /* rule 49 can match eol */
 YY_RULE_SETUP
-#line 317 "lc3.f"
+#line 339 "lc3.f"
 {unterminated_string (); BEGIN (0);}
 	YY_BREAK
 case 50:
 /* rule 50 can match eol */
 YY_RULE_SETUP
-#line 318 "lc3.f"
+#line 340 "lc3.f"
 {bad_operands (); BEGIN (0);}
 	YY_BREAK
 case 51:
 /* rule 51 can match eol */
 YY_RULE_SETUP
-#line 319 "lc3.f"
+#line 341 "lc3.f"
 {
     bad_operands ();
 }
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 323 "lc3.f"
+#line 345 "lc3.f"
 {BEGIN (ls_garbage);}
 	YY_BREAK
 case 53:
 /* rule 53 can match eol */
 YY_RULE_SETUP
-#line 324 "lc3.f"
+#line 346 "lc3.f"
 {bad_line (); BEGIN (0);}
 	YY_BREAK
 /* parsing after the .END directive */
 case 54:
 /* rule 54 can match eol */
 YY_RULE_SETUP
-#line 327 "lc3.f"
+#line 349 "lc3.f"
 {new_inst_line (); /* a blank line  */}
 	YY_BREAK
 case 55:
 /* rule 55 can match eol */
 YY_RULE_SETUP
-#line 328 "lc3.f"
+#line 350 "lc3.f"
 {line_ignored (); return 0;}
 	YY_BREAK
 case 56:
 YY_RULE_SETUP
-#line 330 "lc3.f"
+#line 352 "lc3.f"
 ECHO;
 	YY_BREAK
-#line 2276 "lex.lc3.c"
+#line 2298 "lex.lc3.c"
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(ls_operands):
 case YY_STATE_EOF(ls_garbage):
@@ -3243,7 +3265,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 330 "lc3.f"
+#line 352 "lc3.f"
 
 
 int
@@ -3284,11 +3306,18 @@ main (int argc, char** argv)
         fprintf (stderr, "Could not open %s for writing.\n", fname);
 	return 2;
     }
+    /* open the out_file for hex instructions. */
+    strcpy (ext, ".txt");
+    if ((out_file = fopen (fname, "w")) == NULL) {
+        fprintf (stderr, "Could not open %s for writing.\n", fname);
+	return 2;
+    }
     strcpy (ext, ".sym");
     if ((symout = fopen (fname, "w")) == NULL) {
         fprintf (stderr, "Could not open %s for writing.\n", fname);
 	return 2;
     }
+
     /* FIXME: Do we really need to exactly match old format for compatibility 
        with Windows simulator? */
     fprintf (symout, "// Symbol table\n");
@@ -3346,8 +3375,10 @@ main (int argc, char** argv)
     	return 1;
 
     fprintf (symout, "\n");
+    /* close the three files the code made */
     fclose (symout);
     fclose (objout);
+    fclose (out_file);
 
     return 0;
 }
@@ -3432,6 +3463,8 @@ write_value (int val)
     out[0] = (val >> 8);
     out[1] = (val & 0xFF);
     fwrite (out, 2, 1, objout);
+    /* print to the out_file the hex instruction */
+    fprintf (out_file, "%x\n", val);
 }
 
 static char*
@@ -3626,23 +3659,16 @@ generate_instruction (operands_t operands, const char* opstr)
 
                 // end of loop, restore r2 at mem[0x3]
                 write_value (0x2000 | (r2 << 9) | (0x1E5)); 
-
-                break;
-
             }
             else if (r1 == r2) {
                 // MLT R1, R1, #9
-                printf("case 2 not hype");
                 (void)read_val (o3, &val, 5);
                 // temp register will be R0 or R1. 
                 
                 int tempR = 0b0;
                 if (r1 == 0){
-                    printf("it is 0");
                     tempR = 0b001;
                 }
-                printf("this is %d", tempR);
-
                 // store
                 write_value (0x3000 | (tempR << 9) | (0x1)); //  
                 write_value(0xE01);
@@ -3651,7 +3677,6 @@ generate_instruction (operands_t operands, const char* opstr)
                 // reset tempR and add r1 to it
                 write_value (0x5020 | (tempR << 9) | (tempR << 6)| (0x0));
                 write_value (0x1020 | (tempR << 9) | (tempR << 6) | (val & 0x1F));
-
 
                 // store r1, r3, r3 in memory PC + 3
                 write_value (0x3000 | (r1 << 9) | (0x3)); //  
@@ -3720,12 +3745,13 @@ generate_instruction (operands_t operands, const char* opstr)
                 // br np to pos_mult
                 write_value(0xBEB);
 
-                // end of loop, restore tempR at mem[0x3]
+                // end of loop, restore tempR
                 write_value (0x2000 | (tempR << 9) | (0x1DD)); 
-
-	            break;
             }
-            else if (r1 == r2 && r1 != r3) {
+            break;
+        }
+        else {
+            if (r1 == r2 && r1 != r3) {
                 // MLT R1, R1, R2: R1 = 3 R2 = 2.
 
                 // store r1, r3, r3 in memory PC + 3
@@ -3797,19 +3823,24 @@ generate_instruction (operands_t operands, const char* opstr)
 
                 // end of loop, restore r3 at mem[0x3]
                 write_value (0x2000 | (r3 << 9) | (0x1E5)); 
-
                 break;
             }
-            else if (r1 == r2 && r2 == r3){
-
-                int tempR = 0b0;
-                if (r1 == 0){
-                    printf("it is 0");
-                    tempR = 0b001;
+            else { // if ((r1 == r2 && r2 == r3) || (r1 != r2 && r2 == r3))
+                int tempR;
+                if (r1 != r2 && r2 == r3){
+                    tempR = r2; 
+                    // clear r1 and put r2 in r1
+                    write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));
+                    write_value (0x1000 | (r1 << 9) | (r1 << 6) | r2);
                 }
-                printf("this is %d", tempR);
+                else {
+                    tempR = 0b0;
+                    if (r1 == 0){
+                        tempR = 0b001;
+                    }
+                }
 
-                // store
+                // store tempR to restore it later. 
                 write_value (0x3000 | (tempR << 9) | (0x1)); //  
                 write_value(0xE01);
                 write_value(0xE02);  // This location is tempR
@@ -3822,7 +3853,7 @@ generate_instruction (operands_t operands, const char* opstr)
                 // copy code
                 
                 // store r1, r3, r3 in memory PC + 3
-                write_value (0x3000 | (r2 << 9) | (0x3)); //  
+                write_value (0x3000 | (r1 << 9) | (0x3)); //  
                 write_value (0x3000 | (tempR << 9) | (0x3)); // 
                 write_value (0x3000 | (tempR << 9) | (0x3)); // 
                 // branch in all case two spots!  and garbage. 
@@ -3890,132 +3921,33 @@ generate_instruction (operands_t operands, const char* opstr)
 
                 // end of loop, restore tempR at mem[0x3]
                 write_value (0x2000 | (tempR << 9) | (0x1DD)); 
-
+            
                 break;
-
             }
-            else if (r1 != r2 && r2 == r3){
-                int tempR;
-                tempR = r2;
-
-                // store
-                write_value (0x3000 | (tempR << 9) | (0x1)); //  
-                write_value(0xE01);
-                write_value(0xE02);  // This location is tempR
-
-                // reset tempR and add r1 to it
-                write_value (0x5020 | (tempR << 9) | (tempR << 6)| (0x0));
-                write_value (0x1000 | (tempR << 9) | (tempR << 6) | r1);
-
-
-                // copy code
-                
-                // store r1, r3, r3 in memory PC + 3
-                write_value (0x3000 | (r1 << 9) | (0x3)); //  
-                write_value (0x3000 | (tempR << 9) | (0x3)); // 
-                write_value (0x3000 | (tempR << 9) | (0x3)); // 
-                // branch in all case two spots!  and garbage. 
-                write_value(0xE03);
-                write_value(0xE02);
-                write_value(0xE02);
-                write_value(0xE02); 
-
-                // loop 
-                // check if tempR is negative- add 0
-                // add 0 to tempR, br neg
-                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x0));
-                write_value(0x807);
-
-                // reset r1. 
-                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0 & 0x1F));   
-
-                // LD tempR = mem[0x1] --> tempR = 3.    
-                // pos_mult:    
-                // r1 = r1 + tempR
-                write_value (0x2000 | (tempR << 9) | (0x1F9));
-                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (tempR));
-                // LD mem[0x2]: r1 = r1 - 1 
-                write_value (0x2000 | (tempR << 9) | (0x1F9));                
-                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1F));
-                // ST r1 in mem[0x2]
-                write_value (0x3000 | (tempR << 9) | (0x1F7));
-
-                // br nzp to Here!
-                write_value(0xE0E);
-
-                // if tempR negtive:
-                // add 0 to r1, br neg_step
-                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x0));
-                write_value(0x807);
-
-                // case tempR is neg, r1 is pos:
-                // reset r0. 
-                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));   
-
-                // tempR be the counter and r1 the adder. 
-                write_value (0x2000 | (tempR << 9) | (0x1F2));
-                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (tempR));
-                // LD mem[0x2]: tempR = tempR - 1 
-                write_value (0x2000 | (tempR << 9) | (0x1EE)); // F0                
-                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1F));
-                // ST r1 in mem[0x2]
-                write_value (0x3000 | (tempR << 9) | (0x1EC));
-
-                // br nzp to Here!
-                write_value(0xE05);
-
-                // neg_step
-                // both are negative: not and add 1 to r1 and tempR.
-                write_value (0x903F | (tempR << 9) | (tempR << 6));
-                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1));
-                write_value (0x903F | (r1 << 9) | (r1 << 6));
-                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1));
-                // br nzp to pos_mult
-                write_value(0xFF4);
-
-                // Here!
-                // br np to pos_mult
-                write_value(0xBEB);
-
-                // end of loop, restore tempR at mem[0x3]
-                write_value (0x2000 | (tempR << 9) | (0x1DD)); 
-
-                break;
-
-            }
-
-
         }
+        break;
 
 
     case OP_SUB:
         if (operands == O_RRI) {
-            printf("subtract with value\n");
             (void)read_val (o3, &val, 5);
-
-            // not 
             // r1 = -r2. NOT(r2) add 1. 
             write_value (0x903F | (r1 << 9) | (r2 << 6));
             write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1));
 
-            // r1 = r1 + r3
+            // r1 = r1 + val
             write_value (0x1020 | (r1 << 9) | (r1 << 6) | (val & 0x1F));
+
             // not desination register and + 1
             write_value (0x903F | (r1 << 9) | (r1 << 6));
             write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1));
-
-            break;
+            
         } else {
-            printf("subtract %d %d %d \n", r1, r2, r3);
-
             if (r1 == r2  && r2 == r3) {
-                // SUB R1, R1, R1
-                // reset R1 = 0. 
-                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0 & 0x1F));
+                // SUB R1, R1, R1. reset R1 = 0. 
+                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));
             }
             else if (r1 != r2) {
-                // SUB R1, R2, R1 or SUB R1, R2, R3
-
                 // r1 = -r3. NOT(r3) add 1. 
                 write_value (0x903F | (r1 << 9) | (r3 << 6));
                 write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1));
@@ -4024,8 +3956,6 @@ generate_instruction (operands_t operands, const char* opstr)
                 write_value (0x1000 | (r1 << 9) | (r1 << 6) | r2);
             }
             else {
-                // r1 == r2. SUB R1, R1, R2. 
-
                 // r1 = -r2. NOT(r2) add 1. 
                 write_value (0x903F | (r1 << 9) | (r2 << 6));
                 write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1));
@@ -4033,7 +3963,7 @@ generate_instruction (operands_t operands, const char* opstr)
                 // r1 = r1 + r3
                 write_value (0x1000 | (r1 << 9) | (r1 << 6) | r3);
 
-                // not r1
+                // not r1 + 1
                 write_value (0x903F | (r1 << 9) | (r1 << 6));
                 write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1));
             }
@@ -4041,50 +3971,41 @@ generate_instruction (operands_t operands, const char* opstr)
         break;
 
     // puts a random value register!
-    // This is really good for testings - registers will be postive, neg, or zero.
+    // This is good for testings - registers will be postive, neg, or zero.
     case OP_RND: ;
         // generate a random number 
         int r = rand();
 
         // br nzp over 1 spot 
         write_value(0xE01);
-        // get a random line. 
+        // put value in that random line. 
         write_value(r);
-        // load value of the prior line in a register. 
+        // load value of line into register.  
         write_value (0x2000 | (r1 << 9) | (0x1FE));
-
-        printf("random number is %x\n", r);
-
         break;
 
     case OP_TIM: ;
-        time_t seconds;
-     
-        seconds = time(NULL);
-        seconds = seconds & 0xffff;
-        // reset the register
-        // add seconds to it
-        printf("this is the register %d\n", r1);
-        printf("%x\n", seconds);
 
+        int a = getMicrotime(); 
+        printf("mircoseconds : %x\n", a & 0xffff);
+
+        // branch one spot 
         write_value(0xE01);
-        // get a random line. 
-        write_value(seconds);
-        // load value of the prior line in a register. 
+        // put value in that random line. 
+        write_value(a & 0xffff);
+        // load value of line into register.  
         write_value (0x2000 | (r1 << 9) | (0x1FE));
 
-        break;
-
+        break; 
 
     // generate a RANDOM OPCODE.
-    case OP_SPR:
-        printf("surprise!\n");
+    case OP_SPR: ;
         int random_line = rand();
         write_value(random_line);
         break;
 
+    // Reset a register
     case OP_RST:
-        printf("reset ");
 		write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));
 	    break;
 
