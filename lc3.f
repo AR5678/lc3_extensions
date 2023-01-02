@@ -23,9 +23,10 @@
  * BASIS, AND THE AUTHOR NO OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, 
  * UPDATES, ENHANCEMENTS, OR MODIFICATIONS."
  *
- * Author:	    Steve Lumetta
+ * Author:	    Steve Lumetta and Alexandra Roffe
  * Version:	    1
  * Creation Date:   18 October 2003
+ * Updated:         2  January 2023
  * Filename:	    lc3.f
  * History:
  *	SSL	1	18 October 2003
@@ -53,8 +54,7 @@ part of the label?  Currently I allow only alpha followed by alphanum and _.
 #include <sys/time.h>
 
 #include "symbol.h"
-/* get a random number */
-int rand(void);
+
 
 /* return the time in microseconds. */
 long getMicrotime(){
@@ -63,14 +63,13 @@ long getMicrotime(){
 	return currentTime.tv_sec * (int)1e6 + currentTime.tv_usec;
 }
 
-
 typedef enum opcode_t opcode_t;
 enum opcode_t {
     /* no opcode seen (yet) */
     OP_NONE,
 
-    /* new instruction opcodes */
-    OP_MLT, OP_RND, OP_RST, OP_SPR, OP_SUB, OP_TIM,
+    /* new instruction opcodes (alphabetical of course)*/
+    OP_ICM, OP_MLT, OP_RND, OP_RST, OP_SPR, OP_SUB, OP_TIM,
 
     
     /* old instruction opcodes*/
@@ -94,7 +93,7 @@ static const char* const opnames[NUM_OPS] = {
     "missing opcode",
 
     /* new instruction opcodes */
-    "MLT", "RND", "RST", "SPR", "SUB", "TIM",
+    "ICM", "MLT", "RND", "RST", "SPR", "SUB", "TIM",
     
     /* real instruction opcodes */
     "ADD", "AND", "BR", "JMP", "JSR", "JSRR", "LD", "LDI", "LDR", "LEA",
@@ -132,12 +131,14 @@ static const int op_format_ok[NUM_OPS] = {
     0x200, /* no opcode, no operands       */
 
     /* new instruction formats */
+
+    0x0C0, /* ICM: increment a memory address*/
     0x003, /* MLT: RRR or RRI formats only */
     0x020, /* RND: R format only    - take in 1 register and load a random value in it*/
     0x020, /* RST: R format only */
     0x200, /* SPR: no operands */
     0x003, /* SUB: RRR or RRI formats only */
-    0x020, /* TIM: R format only    - put the time in a register */
+    0x020, /* TIM: R format only    - put the time in microseconds in a register */
 
 
     /* real instruction formats */
@@ -211,6 +212,7 @@ static int pass, line_num, num_errors, saw_orig, code_loc, saw_end;
 static inst_t inst;
 static FILE* symout;
 static FILE* objout;
+
 /* make a file to keep track of hex instructions */
 static FILE* out_file;
 
@@ -278,6 +280,7 @@ LD        {inst.op = OP_LD;    BEGIN (ls_operands);}
 LEA       {inst.op = OP_LEA;   BEGIN (ls_operands);}
 NOT       {inst.op = OP_NOT;   BEGIN (ls_operands);}
 
+ICM        {inst.op = OP_ICM;   BEGIN (ls_operands);}
 MLT        {inst.op = OP_MLT;   BEGIN (ls_operands);}
 RND        {inst.op = OP_RND;   BEGIN (ls_operands);}
 RST        {inst.op = OP_RST;   BEGIN (ls_operands);}
@@ -388,12 +391,15 @@ main (int argc, char** argv)
         fprintf (stderr, "Could not open %s for writing.\n", fname);
 	return 2;
     }
-    /* open the out_file for hex instructions. */
+
+    /* open the out_file for hex instructions. 
+    It will end be names {fname}.txt           */
     strcpy (ext, ".txt");
     if ((out_file = fopen (fname, "w")) == NULL) {
         fprintf (stderr, "Could not open %s for writing.\n", fname);
 	return 2;
     }
+
     strcpy (ext, ".sym");
     if ((symout = fopen (fname, "w")) == NULL) {
         fprintf (stderr, "Could not open %s for writing.\n", fname);
@@ -457,6 +463,7 @@ main (int argc, char** argv)
     	return 1;
 
     fprintf (symout, "\n");
+
     /* close the three files the code made */
     fclose (symout);
     fclose (objout);
@@ -545,7 +552,8 @@ write_value (int val)
     out[0] = (val >> 8);
     out[1] = (val & 0xFF);
     fwrite (out, 2, 1, objout);
-    /* print to the out_file the hex instruction */
+
+    /* print to the out_file the hex instruction (the input to the function called val)*/
     fprintf (out_file, "%x\n", val);
 }
 
@@ -665,88 +673,16 @@ generate_instruction (operands_t operands, const char* opstr)
 
     case OP_MLT:
         if (operands == O_RRI) {
+            int tempR;
+            (void)read_val (o3, &val, 5);
             // MLT R1, R3, #9 OR MLT R1, R3, #-9 
             if (r1 != r2) {
-                (void)read_val (o3, &val, 5);
                 // reset r1 and add val to it. Rest of the code is from R1, R1, R2 case
                 write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));
                 write_value (0x1020 | (r1 << 9) | (r1 << 6) | (val & 0x1F));
-
-                // store r1, r3, r3 in memory PC + 3
-                write_value (0x3000 | (r1 << 9) | (0x3)); //  
-                write_value (0x3000 | (r2 << 9) | (0x3)); // 
-                write_value (0x3000 | (r2 << 9) | (0x3)); // 
-                // branch in all case two spots!  and garbage. 
-                write_value(0xE03);
-                write_value(0xE02);
-                write_value(0xE02);
-                write_value(0xE02); 
-
-                // loop 
-                // check if r2 is negative- add 0
-                // add 0 to r2, br neg
-                write_value (0x1020 | (r2 << 9) | (r2 << 6) | (0x0));
-                write_value(0x807);
-
-                // reset r1. 
-                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0 & 0x1F));   
-
-                // LD r2 = mem[0x1] --> r2 = 3.    
-                // pos_mult:    
-                // r1 = r1 + r2
-                write_value (0x2000 | (r2 << 9) | (0x1F9));
-                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (r2));
-                // LD mem[0x2]: r2 = r2 - 1 
-                write_value (0x2000 | (r2 << 9) | (0x1F9));                
-                write_value (0x1020 | (r2 << 9) | (r2 << 6) | (0x1F));
-                // ST r2 in mem[0x2]
-                write_value (0x3000 | (r2 << 9) | (0x1F7));
-
-                // br nzp to Here!
-                write_value(0xE0E);
-
-                // if r2 negtive:
-                // add 0 to r1, br neg_step
-                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x0));
-                write_value(0x807);
-
-                // case r2 is neg, r2 is pos:
-                // reset r0. 
-                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));   
-
-                // r2 be the counter and r1 the adder. 
-                write_value (0x2000 | (r2 << 9) | (0x1F2));
-                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (r2));
-                // LD mem[0x2]: r2 = r2 - 1 
-                write_value (0x2000 | (r2 << 9) | (0x1EE)); // F0                
-                write_value (0x1020 | (r2 << 9) | (r2 << 6) | (0x1F));
-                // ST r1 in mem[0x2]
-                write_value (0x3000 | (r2 << 9) | (0x1EC));
-
-                // br nzp to Here!
-                write_value(0xE05);
-
-                // neg_step
-                // both are negative: not and add 1 to r2 and r2.
-                write_value (0x903F | (r2 << 9) | (r2 << 6));
-                write_value (0x1020 | (r2 << 9) | (r2 << 6) | (0x1));
-                write_value (0x903F | (r1 << 9) | (r1 << 6));
-                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1));
-                // br nzp to pos_mult
-                write_value(0xFF4);
-
-                // Here!
-                // br np to pos_mult
-                write_value(0xBEB);
-
-                // end of loop, restore r2 at mem[0x3]
-                write_value (0x2000 | (r2 << 9) | (0x1E5)); 
+                tempR = r2;
             }
-            else if (r1 == r2) {
-                // MLT R1, R1, #9
-                (void)read_val (o3, &val, 5);
-                // temp register will be R0 or R1. 
-                
+            else {
                 int tempR = 0b0;
                 if (r1 == 0){
                     tempR = 0b001;
@@ -759,82 +695,88 @@ generate_instruction (operands_t operands, const char* opstr)
                 // reset tempR and add r1 to it
                 write_value (0x5020 | (tempR << 9) | (tempR << 6)| (0x0));
                 write_value (0x1020 | (tempR << 9) | (tempR << 6) | (val & 0x1F));
+            }
 
-                // store r1, r3, r3 in memory PC + 3
-                write_value (0x3000 | (r1 << 9) | (0x3)); //  
-                write_value (0x3000 | (tempR << 9) | (0x3)); // 
-                write_value (0x3000 | (tempR << 9) | (0x3)); // 
-                // branch in all case two spots!  and garbage. 
-                write_value(0xE03);
-                write_value(0xE02);
-                write_value(0xE02);
-                write_value(0xE02); 
+            // store r1, r3, r3 in memory PC + 3
+            write_value (0x3000 | (r1 << 9) | (0x3)); //  
+            write_value (0x3000 | (tempR << 9) | (0x3)); // 
+            write_value (0x3000 | (tempR << 9) | (0x3)); // 
+            // branch in all case two spots!  and garbage. 
+            write_value(0xE03);
+            write_value(0xE02);
+            write_value(0xE02);
+            write_value(0xE02); 
 
-                // loop 
-                // check if tempR is negative- add 0
-                // add 0 to tempR, br neg
-                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x0));
-                write_value(0x807);
+            // loop 
+            // check if tempR is negative- add 0
+            // add 0 to tempR, br neg
+            write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x0));
+            write_value(0x807);
 
-                // reset r1. 
-                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0 & 0x1F));   
+            // reset r1. 
+            write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0 & 0x1F));   
 
-                // LD tempR = mem[0x1] --> tempR = 3.    
-                // pos_mult:    
-                // r1 = r1 + tempR
-                write_value (0x2000 | (tempR << 9) | (0x1F9));
-                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (tempR));
-                // LD mem[0x2]: tempR = tempR - 1 
-                write_value (0x2000 | (tempR << 9) | (0x1F9));                
-                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1F));
-                // ST tempR in mem[0x2]
-                write_value (0x3000 | (tempR << 9) | (0x1F7));
+            // LD tempR = mem[0x1] --> tempR = 3.    
+            // pos_mult:    
+            // r1 = r1 + tempR
+            write_value (0x2000 | (tempR << 9) | (0x1F9));
 
-                // br nzp to Here!
-                write_value(0xE0E);
+            write_value (0x1000 | (r1 << 9) | (r1 << 6) | (tempR & 0x1F));
+            // LD mem[0x2]: tempR = tempR - 1 
+            write_value (0x2000 | (tempR << 9) | (0x1F9));                
+            write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1F));
+            // ST tempR in mem[0x2]
+            write_value (0x3000 | (tempR << 9) | (0x1F7));
 
-                // if tempR negtive:
-                // add 0 to r1, br neg_step
-                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x0));
-                write_value(0x807);
+            // br nzp to Here!
+            write_value(0xE0E);
 
-                // case tempR is neg, tempR is pos:
-                // reset r0. 
-                write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));   
+            // if tempR negtive:
+            // add 0 to r1, br neg_step
+            write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x0));
+            write_value(0x807);
 
-                // tempR be the counter and r1 the adder. 
-                write_value (0x2000 | (tempR << 9) | (0x1F2));
-                write_value (0x1000 | (r1 << 9) | (r1 << 6) | (tempR));
-                // LD mem[0x2]: tempR = tempR - 1 
-                write_value (0x2000 | (tempR << 9) | (0x1EE)); // F0                
-                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1F));
-                // ST r1 in mem[0x2]
-                write_value (0x3000 | (tempR << 9) | (0x1EC));
+            // case tempR is neg, tempR is pos:
+            // reset r0. 
+            write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));   
 
-                // br nzp to Here!
-                write_value(0xE05);
+            // tempR be the counter and r1 the adder. 
+            write_value (0x2000 | (tempR << 9) | (0x1F2));
+            write_value (0x1000 | (r1 << 9) | (r1 << 6) | (tempR & 0x1F));
+            // LD mem[0x2]: tempR = tempR - 1 
+            write_value (0x2000 | (tempR << 9) | (0x1EE)); // F0                
+            write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1F));
+            // ST r1 in mem[0x2]
+            write_value (0x3000 | (tempR << 9) | (0x1EC));
 
-                // neg_step
-                // both are negative: not and add 1 to tempR and tempR.
-                write_value (0x903F | (tempR << 9) | (tempR << 6));
-                write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1));
-                write_value (0x903F | (r1 << 9) | (r1 << 6));
-                write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1));
-                // br nzp to pos_mult
-                write_value(0xFF4);
+            // br nzp to Here!
+            write_value(0xE05);
 
-                // Here!
-                // br np to pos_mult
-                write_value(0xBEB);
+            // neg_step
+            // both are negative: not and add 1 to tempR and tempR.
+            write_value (0x903F | (tempR << 9) | (tempR << 6));
+            write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1));
+            write_value (0x903F | (r1 << 9) | (r1 << 6));
+            write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1));
+            // br nzp to pos_mult
+            write_value(0xFF4);
 
-                // end of loop, restore tempR
+            // Here!
+            // br np to pos_mult
+            write_value(0xBEB);
+
+            // restore the tempR or r2 depending on call
+            if (r1 != r2){
+                write_value (0x2000 | (r2 << 9) | (0x1E5)); 
+            }
+            else {
                 write_value (0x2000 | (tempR << 9) | (0x1DD)); 
             }
             break;
         }
         else {
-            if (r1 == r2 && r1 != r3) {
-                // MLT R1, R1, R2: R1 = 3 R2 = 2.
+            if ((r1 == r2 && r1 != r3)  || (r1 != r2 && r1 != r3)) {
+                // MLT R1, R1, R2 or MLT R1, R2, R3
 
                 // store r1, r3, r3 in memory PC + 3
                 write_value (0x3000 | (r2 << 9) | (0x3)); //  
@@ -907,7 +849,7 @@ generate_instruction (operands_t operands, const char* opstr)
                 write_value (0x2000 | (r3 << 9) | (0x1E5)); 
                 break;
             }
-            else { // if ((r1 == r2 && r2 == r3) || (r1 != r2 && r2 == r3))
+            else if ((r1 == r2 && r2 == r3) || (r1 != r2 && r2 == r3)) {
                 int tempR;
                 if (r1 != r2 && r2 == r3){
                     tempR = r2; 
@@ -915,7 +857,8 @@ generate_instruction (operands_t operands, const char* opstr)
                     write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));
                     write_value (0x1000 | (r1 << 9) | (r1 << 6) | r2);
                 }
-                else {
+                else if ((r1 == r2 && r2 == r3)) {
+                    // printf("%d %d %d", r1, r2, r3); 
                     tempR = 0b0;
                     if (r1 == 0){
                         tempR = 0b001;
@@ -930,9 +873,6 @@ generate_instruction (operands_t operands, const char* opstr)
                 // reset tempR and add r1 to it
                 write_value (0x5020 | (tempR << 9) | (tempR << 6)| (0x0));
                 write_value (0x1000 | (tempR << 9) | (tempR << 6) | r1);
-
-
-                // copy code
                 
                 // store r1, r3, r3 in memory PC + 3
                 write_value (0x3000 | (r1 << 9) | (0x3)); //  
@@ -1011,18 +951,22 @@ generate_instruction (operands_t operands, const char* opstr)
 
 
     case OP_SUB:
+    /* check if it is with imm value or 3 registers. */
         if (operands == O_RRI) {
             (void)read_val (o3, &val, 5);
-            // r1 = -r2. NOT(r2) add 1. 
-            write_value (0x903F | (r1 << 9) | (r2 << 6));
-            write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1));
-
-            // r1 = r1 + val
-            write_value (0x1020 | (r1 << 9) | (r1 << 6) | (val & 0x1F));
-
-            // not desination register and + 1
+            if (r1 != r2){ // r1 = NOT(r2). 
+                write_value (0x903F | (r1 << 9) | (r2 << 6));
+            }
+            else { // r1 = NOT(r1)
+                write_value (0x903F | (r1 << 9) | (r1 << 6));
+            }
+            // r1 = r1 + val + 1
+            write_value (0x1020 | (r1 << 9) | (r1 << 6) | ((val + 0x1) & 0x1F));
+            
+            // not r1 + 1
             write_value (0x903F | (r1 << 9) | (r1 << 6));
             write_value (0x1020 | (r1 << 9) | (r1 << 6) | (0x1));
+            break;
             
         } else {
             if (r1 == r2  && r2 == r3) {
@@ -1060,12 +1004,13 @@ generate_instruction (operands_t operands, const char* opstr)
 
         // br nzp over 1 spot 
         write_value(0xE01);
-        // put value in that random line. 
+        // put random value
         write_value(r);
         // load value of line into register.  
         write_value (0x2000 | (r1 << 9) | (0x1FE));
         break;
 
+    /* put the time in microseconds in a register */
     case OP_TIM: ;
 
         int a = getMicrotime(); 
@@ -1080,10 +1025,15 @@ generate_instruction (operands_t operands, const char* opstr)
 
         break; 
 
-    // generate a RANDOM OPCODE.
+    // generate a RANDOM opcode based on time and rand()
     case OP_SPR: ;
         int random_line = rand();
-        write_value(random_line);
+        int b = getMicrotime(); 
+
+        int line_random = b & random_line; 
+        // only want 4 digits so AND 0xfff
+        write_value(line_random & 0xffff);
+
         break;
 
     // Reset a register
@@ -1091,8 +1041,34 @@ generate_instruction (operands_t operands, const char* opstr)
 		write_value (0x5020 | (r1 << 9) | (r1 << 6)| (0x0));
 	    break;
 
+    /* increment a memory location by 1*/
+    case OP_ICM:
+	    (void)read_val (o1, &val, 11);
+        /* plan: copy what is in R0 into memory. 
+        load from memory into R0 the location I want to increment (with 'val' as the offset). 
+        Increment R0. Store it in memory at the same location. 
+        Restore R0. */
+
+        int tempR = 0b0;
+        // store
+        write_value (0x3000 | (tempR << 9) | (0x1)); //  
+        write_value(0xE01);
+        write_value(0xE02);  // This what is in R0. 
+
+        // load from memory
+        write_value (0x2000 | (tempR << 9) | (val + 2));   
+        // add 1 to R0             
+        write_value (0x1020 | (tempR << 9) | (tempR << 6) | (0x1));
+        // store it in that location
+        write_value (0x3000 | (tempR << 9) | (val));
+
+        // restore R0
+        write_value (0x2000 | (tempR << 9) | (0x1FB));
+
+        break; 
+
 	case OP_ADD:
-	    if (operands == O_RRI) { // with imediate values
+	    if (operands == O_RRI) { // with immediate values
 	    	/* Check or read immediate range (error in first pass
 		   prevents execution of second, so never fails). */
 	        (void)read_val (o3, &val, 5);
@@ -1121,6 +1097,8 @@ generate_instruction (operands_t operands, const char* opstr)
 	case OP_JMP:
 	    write_value (0xC000 | (r1 << 6));
 	    break;
+
+
 	case OP_JSR:
 	    if (operands == O_I)
 	        (void)read_val (o1, &val, 11);

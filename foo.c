@@ -4,6 +4,13 @@
 #include <inttypes.h>
 #include <time.h>
 
+
+//Example2.c  
+ 
+#include<stdio.h>  
+#include<stdlib.h>  
+#include<time.h>  
+
 #include <sys/time.h>
 
 /* Returns the current time in microseconds.
@@ -21,7 +28,14 @@ int64_t mill_sec()
     return ((int64_t) now.tv_sec) * 1000 + ((int64_t) now.tv_nsec) / 1000000;
 }
 
-int main(void){
+ 
+int main(void)  
+{  
+    printf("10 Random Numbers =>\n");      
+     
+}
+/*
+int main2(void){
     
     printf("this is %d\n", getMicrotime());
     for (int i; i < 1000; i++){
@@ -44,7 +58,7 @@ int main1(void)
 }
 
 
-/*
+
 
 int main(void)
 {
