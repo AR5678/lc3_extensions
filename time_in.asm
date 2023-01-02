@@ -2,9 +2,9 @@
 
     TIM R0
 
-    RST R1
     RST R2
+    RST R3
 
-    TIM R4
+    TIM R1
 
 	.END
